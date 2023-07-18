@@ -2,6 +2,6 @@
 
 A simple cookie-based user authentication gateway for your app
 
-<img width="852" alt="image" src="https://github.com/huytd/authgate/assets/613943/d4481bfe-26d1-407f-81e3-3687dde48c60">
+![authgate-integration](https://github.com/huytd/authgate/assets/613943/dfadae11-1980-4120-8283-fb3653376af7)
 
 (Docs coming soon...)

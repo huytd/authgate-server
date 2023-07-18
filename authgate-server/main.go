@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -228,6 +229,13 @@ func main() {
 	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
 		Format: "${time_rfc3339} :: method=${method}, uri=${uri}, status=${status}, referrer=${referrer}\n",
 	}))
+
+	allowedOrigins := strings.Split(os.Getenv("ALLOWED_ORIGINS"), ",")
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: allowedOrigins,
+	}))
+
+	e.Use(middleware.Recover())
 
 	e.POST("/register", s.UserSignUpHandler)
 	e.POST("/login", s.UserSignInHandler)

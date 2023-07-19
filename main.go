@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -65,6 +66,21 @@ func SetCookie(c echo.Context, key, value string, expiration time.Time) {
 	c.SetCookie(cookie)
 }
 
+func (s *Server) VerifySessionAndUserID(ctx context.Context, sessionID string, userID string) bool {
+	storedUserID, err := s.RDB.Get(ctx, sessionID).Result()
+	if err != nil {
+		fmt.Printf("Session not found or expired: %s\n", err)
+		return false
+	}
+
+	if storedUserID != userID {
+		fmt.Printf("Invalid session: %s\n", err)
+		return false
+	}
+
+	return true
+}
+
 func (s *Server) SessionMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		userID, err := c.Cookie("userid")
@@ -79,13 +95,7 @@ func (s *Server) SessionMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 			return UnauthorizedError(c)
 		}
 
-		storedUserID, err := s.RDB.Get(c.Request().Context(), sessionID.Value).Result()
-		if err != nil {
-			fmt.Printf("Session not found or expired: %s\n", err)
-			return UnauthorizedError(c)
-		}
-
-		if storedUserID != userID.Value {
+		if !s.VerifySessionAndUserID(context.Background(), sessionID.Value, userID.Value) {
 			fmt.Printf("Invalid session: %s\n", err)
 			return UnauthorizedError(c)
 		}
@@ -193,10 +203,30 @@ func (s *Server) UserSignOutHandler(c echo.Context) error {
 }
 
 func (s *Server) UserSessionVerify(c echo.Context) error {
-	userID := c.Get("userID").(string)
+	userID := c.QueryParam("userid")
+	sessionID := c.QueryParam("sessionid")
+
+	if len(userID) == 0 || len(sessionID) == 0 {
+		return InvalidRequestError(c)
+	}
+
+	if !s.VerifySessionAndUserID(c.Request().Context(), sessionID, userID) {
+		fmt.Printf("Invalid session (%s, %s)\n", sessionID, userID)
+		return UnauthorizedError(c)
+	}
+
+	var userEmail string
+	var userName string
+	err := s.DB.QueryRow("SELECT email, name FROM users WHERE user_id=$1", userID).Scan(&userEmail, &userName)
+	if err != nil {
+		fmt.Printf("Could find user information: %s\n", err)
+		return UnauthorizedError(c)
+	}
 
 	return c.JSON(200, echo.Map{
 		"user_id": userID,
+		"email":   userEmail,
+		"name":    userName,
 	})
 }
 
@@ -241,7 +271,7 @@ func main() {
 	e.POST("/login", s.UserSignInHandler)
 	e.POST("/logout", s.UserSignOutHandler, s.SessionMiddleware)
 	e.GET("/profile", s.UserInfoHandler, s.SessionMiddleware)
-	e.GET("/verify-session", s.UserSessionVerify, s.SessionMiddleware)
+	e.GET("/verify-session", s.UserSessionVerify)
 
 	// Start server
 	port := os.Getenv("PORT")

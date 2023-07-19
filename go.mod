@@ -1,4 +1,4 @@
-module com.sequencegenius/authgate
+module sequencegenius.com/authgate-server
 
 go 1.20
 
